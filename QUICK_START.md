@@ -40,6 +40,9 @@ TEST_MODE=0
 USE_SCHEDULE=true
 SUPABASE_URL=https://xxxxx.supabase.co
 SUPABASE_ANON_KEY=eyJhbGciOi...your_key_here
+EMAIL_FROM=noreplybadassbbqs@gmail.com
+EMAIL_PASSWORD=muyyqzqzfswadrzz
+EMAIL_TO=your_email@example.com
 ```
 
 ### Step 4: Configure Cron (1 min)

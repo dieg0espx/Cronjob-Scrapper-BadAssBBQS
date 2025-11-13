@@ -77,9 +77,14 @@ TEST_MODE=0
 USE_SCHEDULE=true
 SUPABASE_URL=https://xxxxx.supabase.co
 SUPABASE_ANON_KEY=eyJhbGc...
+EMAIL_FROM=noreplybadassbbqs@gmail.com
+EMAIL_PASSWORD=muyyqzqzfswadrzz
+EMAIL_TO=your_email@example.com
 ```
 
-**Important:** Use `SUPABASE_ANON_KEY` (not `SUPABASE_KEY`)
+**Important:**
+- Use `SUPABASE_ANON_KEY` (not `SUPABASE_KEY`)
+- `EMAIL_PASSWORD` is a Gmail App Password (not your regular password)
 
 ### 6. Set Up Cron Job
 In Railway Dashboard:

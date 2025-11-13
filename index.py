@@ -11,6 +11,7 @@ from pathlib import Path
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import logging
+from email_notifier import send_scraping_notification, send_error_notification
 
 # Set up logging
 logging.basicConfig(
@@ -42,7 +43,11 @@ def run_scraper():
         return False
 
 def upload_to_database(json_file='products.json'):
-    """Upload products from JSON file to Supabase database"""
+    """Upload products from JSON file to Supabase database
+
+    Returns:
+        tuple: (success: bool, brands_scraped: list, total_products: int, failed_brands: list)
+    """
     logger.info("\n" + "=" * 80)
     logger.info("STEP 2: UPLOADING TO DATABASE")
     logger.info("=" * 80)
@@ -53,19 +58,19 @@ def upload_to_database(json_file='products.json'):
 
     if not SUPABASE_URL or not SUPABASE_KEY:
         logger.error("✗ Missing Supabase credentials in .env file")
-        return False
+        return False, [], 0, []
 
     # Check if products file exists
     if not os.path.exists(json_file):
         logger.error(f"✗ {json_file} not found")
-        return False
+        return False, [], 0, []
 
     # Initialize Supabase client
     try:
         supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
     except Exception as e:
         logger.error(f"✗ Failed to connect to Supabase: {e}")
-        return False
+        return False, [], 0, []
 
     # Load products from JSON
     logger.info(f"Loading products from {json_file}...")
@@ -73,6 +78,9 @@ def upload_to_database(json_file='products.json'):
         products = json.load(f)
 
     logger.info(f"Found {len(products)} products to upload")
+
+    # Track brands
+    brands_scraped = set()
 
     # Upload each product
     successful = 0
@@ -85,6 +93,10 @@ def upload_to_database(json_file='products.json'):
 
             logger.info(f"[{i}/{len(products)}] ✓ Uploaded: {product.get('Title', 'Unknown')}")
             successful += 1
+
+            # Track brand
+            if 'brand' in product:
+                brands_scraped.add(product['brand'])
 
         except Exception as e:
             logger.error(f"[{i}/{len(products)}] ✗ Failed: {product.get('Title', 'Unknown')}")
@@ -99,7 +111,7 @@ def upload_to_database(json_file='products.json'):
     logger.info(f"Total: {len(products)}")
     logger.info("=" * 80)
 
-    return failed == 0
+    return failed == 0, list(brands_scraped), successful, []
 
 def main():
     """Main execution flow"""
@@ -108,20 +120,46 @@ def main():
     logger.info("=" * 80)
     logger.info("")
 
-    # Step 1: Run scraper
-    if not run_scraper():
-        logger.error("\n✗ Pipeline failed at scraping stage")
-        sys.exit(1)
+    try:
+        # Step 1: Run scraper
+        if not run_scraper():
+            error_msg = "Pipeline failed at scraping stage"
+            logger.error(f"\n✗ {error_msg}")
+            send_error_notification(error_msg)
+            sys.exit(1)
 
-    # Step 2: Upload to database
-    if not upload_to_database():
-        logger.error("\n✗ Pipeline failed at database upload stage")
-        sys.exit(1)
+        # Step 2: Upload to database
+        success, brands_scraped, total_products, failed_brands = upload_to_database()
 
-    # Success
-    logger.info("\n" + "=" * 80)
-    logger.info("✓ PIPELINE COMPLETE - ALL STEPS SUCCESSFUL")
-    logger.info("=" * 80)
+        if not success:
+            error_msg = "Pipeline failed at database upload stage"
+            logger.error(f"\n✗ {error_msg}")
+            send_error_notification(error_msg)
+            sys.exit(1)
+
+        # Success
+        logger.info("\n" + "=" * 80)
+        logger.info("✓ PIPELINE COMPLETE - ALL STEPS SUCCESSFUL")
+        logger.info("=" * 80)
+
+        # Step 3: Send email notification
+        logger.info("\n" + "=" * 80)
+        logger.info("STEP 3: SENDING EMAIL NOTIFICATION")
+        logger.info("=" * 80)
+
+        success_rate = 100.0 if total_products > 0 else 0.0
+        send_scraping_notification(
+            brands_scraped=brands_scraped,
+            total_products=total_products,
+            success_rate=success_rate,
+            failed_brands=failed_brands
+        )
+
+    except Exception as e:
+        error_msg = f"Unexpected error: {str(e)}"
+        logger.error(f"\n✗ {error_msg}")
+        send_error_notification(error_msg)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
