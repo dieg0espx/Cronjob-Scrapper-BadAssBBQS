@@ -26,7 +26,7 @@ load_dotenv()
 #   0 = Full scrape (all products from all brands)
 #   1 = Quick test (1 product from 1 random brand)
 #   2 = Standard test (2 products from each brand)
-TEST_MODE = int(os.getenv('TEST_MODE', '0'))
+TEST_MODE = int(os.getenv('TEST_MODE', '2'))
 
 # Supabase configuration
 SUPABASE_URL = os.getenv('SUPABASE_URL')
