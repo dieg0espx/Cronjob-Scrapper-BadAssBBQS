@@ -1,1 +1,1 @@
-worker: python light_scraper.py
+worker: python index.py

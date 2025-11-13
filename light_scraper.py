@@ -15,6 +15,7 @@ import logging
 import sys
 import re
 import os
+from datetime import datetime
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -26,7 +27,10 @@ load_dotenv()
 #   0 = Full scrape (all products from all brands)
 #   1 = Quick test (1 product from 1 random brand)
 #   2 = Standard test (2 products from each brand)
-TEST_MODE = int(os.getenv('TEST_MODE', '2'))
+TEST_MODE = int(os.getenv('TEST_MODE', '1'))
+
+# Schedule mode - distribute brands across days of the week
+USE_SCHEDULE = os.getenv('USE_SCHEDULE', 'false').lower() == 'true'
 
 # Supabase configuration
 SUPABASE_URL = os.getenv('SUPABASE_URL')
@@ -39,6 +43,37 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def get_brands_for_today(brands):
+    """
+    Filter brands based on current day of the week.
+    Distributes 21 brands across 7 days (3 brands per day).
+
+    Day distribution:
+    - Monday (0): brands 0-2 (3 brands)
+    - Tuesday (1): brands 3-5 (3 brands)
+    - Wednesday (2): brands 6-8 (3 brands)
+    - Thursday (3): brands 9-11 (3 brands)
+    - Friday (4): brands 12-14 (3 brands)
+    - Saturday (5): brands 15-17 (3 brands)
+    - Sunday (6): brands 18-20 (3 brands)
+    """
+    today = datetime.now().weekday()  # 0=Monday, 6=Sunday
+    brands_per_day = 3
+
+    start_idx = today * brands_per_day
+    end_idx = start_idx + brands_per_day
+
+    day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    selected_brands = brands[start_idx:end_idx]
+
+    logger.info(f"📅 Today is {day_names[today]}")
+    logger.info(f"📦 Assigned brands for today: {start_idx} to {end_idx-1} (indices)")
+    logger.info(f"🏷️  Brands: {', '.join([b.get('brand', 'Unknown') for b in selected_brands])}")
+    logger.info("")
+
+    return selected_brands
 
 
 class LightScraper:
@@ -410,6 +445,7 @@ class LightScraper:
             mode_str = "STANDARD TEST (2 products from each brand)"
 
         logger.info(f"Mode: {mode_str}")
+        logger.info(f"Schedule mode: {'ENABLED' if USE_SCHEDULE else 'DISABLED'}")
         logger.info(f"Input file: {url_list_file}")
         logger.info(f"Output file: {output_file}")
         logger.info(f"Supabase enabled: {USE_SUPABASE and self.supabase is not None}")
@@ -428,8 +464,11 @@ class LightScraper:
             logger.error(f"Error: Failed to parse {url_list_file}: {e}")
             return []
 
+        # If USE_SCHEDULE is enabled and not in test mode, filter by day of week
+        if USE_SCHEDULE and test_mode == 0:
+            brands = get_brands_for_today(brands)
         # If test_mode is 1, select only one random brand
-        if test_mode == 1:
+        elif test_mode == 1:
             import random as rand
             brands = [rand.choice(brands)]
             logger.info(f"✓ Selected random brand: {brands[0].get('brand', 'Unknown')}")

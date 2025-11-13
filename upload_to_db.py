@@ -10,7 +10,7 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 
 # Load environment variables
-env_path = Path(__file__).parent.parent / '.env'
+env_path = Path(__file__).parent / '.env'
 load_dotenv(env_path)
 
 # Get Supabase credentials

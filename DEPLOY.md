@@ -5,8 +5,9 @@ A lightweight web scraper for BBQGuys.com that extracts product information and 
 ## Features
 
 - Scrapes 21 BBQ brands from BBQGuys.com
+- **Daily brand scheduling** - Distributes brands across the week (3 brands per day)
 - Extracts product details (title, price, images, specs, etc.)
-- Stores data in Supabase database
+- Automatically uploads to Supabase database
 - Configurable test modes
 - Rate limiting to be respectful
 - Runs as daily cron job on Railway
@@ -92,10 +93,12 @@ In Railway Dashboard > Variables, add:
 
 ```
 TEST_MODE=0
-USE_SUPABASE=true
+USE_SCHEDULE=true
 SUPABASE_URL=https://xxxxx.supabase.co
-SUPABASE_KEY=your_anon_key_here
+SUPABASE_ANON_KEY=your_anon_key_here
 ```
+
+**Note:** When `USE_SCHEDULE=true`, the scraper will automatically run only the brands assigned to the current day of the week (3 brands per day). See `SCHEDULE.md` for the weekly schedule.
 
 ## Step 5: Set up Cron Schedule
 
@@ -137,9 +140,9 @@ RAILWAY_CRON_SCHEDULE=0 0 * * *
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TEST_MODE` | `0` | `0`=Full scrape, `1`=1 product/1 brand, `2`=2 products/brand |
-| `USE_SUPABASE` | `true` | Enable Supabase storage |
+| `USE_SCHEDULE` | `false` | `true`=Distribute brands by day (3/day), `false`=Run all brands |
 | `SUPABASE_URL` | - | Your Supabase project URL |
-| `SUPABASE_KEY` | - | Your Supabase anon key |
+| `SUPABASE_ANON_KEY` | - | Your Supabase anon key |
 
 ## Testing Before Production
 
@@ -155,15 +158,18 @@ RAILWAY_CRON_SCHEDULE=0 0 * * *
 
 ```
 light/
-├── light_scraper.py    # Main scraper script
-├── url_list.json       # List of 21 brands to scrape
-├── requirements.txt    # Python dependencies
-├── railway.json        # Railway configuration
-├── Procfile           # Process definition
-├── runtime.txt        # Python version
-├── .env.example       # Environment template
-├── .gitignore         # Git ignore rules
-└── DEPLOY.md          # This file
+├── index.py           # Main entry point (scraper + upload)
+├── light_scraper.py   # Scraper logic
+├── upload_to_db.py    # Database upload script
+├── url_list.json      # List of 21 brands to scrape
+├── requirements.txt   # Python dependencies
+├── railway.json       # Railway configuration
+├── Procfile          # Process definition
+├── runtime.txt       # Python version
+├── .env.example      # Environment template
+├── .gitignore        # Git ignore rules
+├── SCHEDULE.md       # Weekly brand schedule
+└── DEPLOY.md         # This file
 ```
 
 ## Monitoring & Logs
