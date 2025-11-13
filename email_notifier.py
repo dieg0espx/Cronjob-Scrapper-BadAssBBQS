@@ -24,13 +24,13 @@ SMTP_SERVER = 'smtp.gmail.com'
 SMTP_PORT = 587
 
 
-def send_scraping_notification(brands_scraped, total_products, success_rate, failed_brands=None):
+def send_scraping_notification(brands_scraped, stats, success_rate, failed_brands=None):
     """
     Send email notification after scraping is complete
 
     Args:
         brands_scraped: List of brand names that were scraped
-        total_products: Total number of products scraped
+        stats: Dictionary with keys: new, updated, skipped, failed, total, details
         success_rate: Success rate percentage (0-100)
         failed_brands: List of brands that failed (optional)
     """
@@ -47,6 +47,14 @@ def send_scraping_notification(brands_scraped, total_products, success_rate, fai
 
         # Get day of week
         day_name = datetime.now().strftime("%A")
+
+        # Extract stats
+        new_count = stats.get('new', 0)
+        updated_count = stats.get('updated', 0)
+        skipped_count = stats.get('skipped', 0)
+        failed_count = stats.get('failed', 0)
+        total_count = stats.get('total', 0)
+        product_details = stats.get('details', [])
 
         # Create HTML body
         html_body = f"""
@@ -79,6 +87,14 @@ def send_scraping_notification(brands_scraped, total_products, success_rate, fai
                     padding: 15px;
                     margin: 15px 0;
                 }}
+                .products {{
+                    background-color: #fff;
+                    border-left: 4px solid #9b59b6;
+                    padding: 15px;
+                    margin: 15px 0;
+                    max-height: 400px;
+                    overflow-y: auto;
+                }}
                 .success {{
                     color: #27ae60;
                     font-weight: bold;
@@ -106,6 +122,50 @@ def send_scraping_notification(brands_scraped, total_products, success_rate, fai
                     color: #27ae60;
                     font-weight: bold;
                 }}
+                .product-item {{
+                    padding: 8px;
+                    margin: 5px 0;
+                    border-radius: 3px;
+                    font-size: 14px;
+                }}
+                .product-new {{
+                    background-color: #d4edda;
+                    border-left: 3px solid #28a745;
+                }}
+                .product-updated {{
+                    background-color: #fff3cd;
+                    border-left: 3px solid #ffc107;
+                }}
+                .product-skipped {{
+                    background-color: #e2e3e5;
+                    border-left: 3px solid #6c757d;
+                }}
+                .product-failed {{
+                    background-color: #f8d7da;
+                    border-left: 3px solid #dc3545;
+                }}
+                .stat-grid {{
+                    display: grid;
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 10px;
+                    margin: 15px 0;
+                }}
+                .stat-box {{
+                    background: white;
+                    padding: 15px;
+                    border-radius: 5px;
+                    text-align: center;
+                    border: 2px solid #ecf0f1;
+                }}
+                .stat-number {{
+                    font-size: 32px;
+                    font-weight: bold;
+                    margin: 10px 0;
+                }}
+                .stat-label {{
+                    color: #7f8c8d;
+                    font-size: 14px;
+                }}
             </style>
         </head>
         <body>
@@ -117,9 +177,28 @@ def send_scraping_notification(brands_scraped, total_products, success_rate, fai
             <div class="content">
                 <div class="summary">
                     <h2>📊 Summary</h2>
-                    <p><strong>Total Products Scraped:</strong> {total_products}</p>
+                    <p><strong>Total Products Processed:</strong> {total_count}</p>
                     <p><strong>Brands Processed:</strong> {len(brands_scraped)}</p>
                     <p><strong>Success Rate:</strong> <span class="success">{success_rate:.1f}%</span></p>
+
+                    <div class="stat-grid">
+                        <div class="stat-box">
+                            <div class="stat-number" style="color: #28a745;">✅ {new_count}</div>
+                            <div class="stat-label">New Products</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-number" style="color: #ffc107;">🔄 {updated_count}</div>
+                            <div class="stat-label">Updated Products</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-number" style="color: #6c757d;">⏭️ {skipped_count}</div>
+                            <div class="stat-label">Skipped (No Changes)</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-number" style="color: #dc3545;">❌ {failed_count}</div>
+                            <div class="stat-label">Failed</div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="brands">
@@ -135,6 +214,40 @@ def send_scraping_notification(brands_scraped, total_products, success_rate, fai
                     </ul>
                 </div>
         """
+
+        # Add product details
+        if product_details:
+            html_body += """
+                <div class="products">
+                    <h2>📦 Product Details</h2>
+            """
+            for product in product_details:
+                action = product.get('action', 'unknown')
+                title = product.get('title', 'Unknown')
+                brand = product.get('brand', 'Unknown')
+
+                if action == 'new':
+                    css_class = 'product-new'
+                    icon = '✅ NEW'
+                elif action == 'updated':
+                    css_class = 'product-updated'
+                    icon = '🔄 UPDATED'
+                elif action == 'skipped':
+                    css_class = 'product-skipped'
+                    icon = '⏭️ SKIPPED'
+                else:
+                    css_class = 'product-failed'
+                    icon = '❌ FAILED'
+
+                html_body += f"""
+                    <div class="product-item {css_class}">
+                        <strong>{icon}</strong> - {brand} - {title}
+                    </div>
+                """
+
+            html_body += """
+                </div>
+            """
 
         # Add failed brands section if any
         if failed_brands and len(failed_brands) > 0:
@@ -173,15 +286,41 @@ BBQ SCRAPER DAILY REPORT
 
 SUMMARY
 -------
-Total Products Scraped: {total_products}
+Total Products Processed: {total_count}
 Brands Processed: {len(brands_scraped)}
 Success Rate: {success_rate:.1f}%
+
+DETAILED STATS
+--------------
+✅ New Products: {new_count}
+🔄 Updated Products: {updated_count}
+⏭️  Skipped (No Changes): {skipped_count}
+❌ Failed: {failed_count}
 
 BRANDS SCRAPED TODAY
 --------------------
 """
         for brand in brands_scraped:
             text_body += f"✓ {brand}\n"
+
+        # Add product details in text format
+        if product_details:
+            text_body += "\nPRODUCT DETAILS\n---------------\n"
+            for product in product_details:
+                action = product.get('action', 'unknown')
+                title = product.get('title', 'Unknown')
+                brand = product.get('brand', 'Unknown')
+
+                if action == 'new':
+                    icon = '✅ NEW'
+                elif action == 'updated':
+                    icon = '🔄 UPDATED'
+                elif action == 'skipped':
+                    icon = '⏭️ SKIPPED'
+                else:
+                    icon = '❌ FAILED'
+
+                text_body += f"{icon} - {brand} - {title}\n"
 
         if failed_brands and len(failed_brands) > 0:
             text_body += "\nFAILED BRANDS\n-------------\n"
