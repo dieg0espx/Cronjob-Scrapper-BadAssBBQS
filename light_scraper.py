@@ -18,7 +18,6 @@ import os
 from datetime import datetime
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from email_notification import send_scraping_notification, send_error_notification
 
 # Load environment variables
 load_dotenv()
@@ -400,8 +399,6 @@ class LightScraper:
             brands = [rand.choice(brands)]
 
         all_products = []
-        brands_scraped = []
-        failed_brands = []
 
         # Process each brand
         for i, brand_data in enumerate(brands, 1):
@@ -417,13 +414,9 @@ class LightScraper:
                 products = self.run(brand_url, brand_name, test_mode)
                 if products:
                     all_products.extend(products)
-                    brands_scraped.append(brand_name)
                     logger.info(f"  -> {len(products)} products")
-                else:
-                    failed_brands.append(brand_name)
             except Exception as e:
                 logger.error(f"  -> Error: {e}")
-                failed_brands.append(brand_name)
 
         # Save to Supabase if configured
         if self.supabase:
@@ -434,18 +427,6 @@ class LightScraper:
             json.dump(all_products, f, indent=2, ensure_ascii=False)
 
         logger.info(f"Done: {len(all_products)} products saved to {output_file}")
-
-        # Send email notification
-        stats = {
-            'new': len(all_products),
-            'updated': 0,
-            'skipped': 0,
-            'failed': len(failed_brands),
-            'total': len(all_products)
-        }
-        success_rate = (len(brands_scraped) / len(brands) * 100) if brands else 0
-        send_scraping_notification(brands_scraped, stats, success_rate, failed_brands)
-
         return all_products
 
 
