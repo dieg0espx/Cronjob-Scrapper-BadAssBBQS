@@ -11,7 +11,6 @@ from pathlib import Path
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import logging
-from email_notifier import send_scraping_notification, send_error_notification
 
 # Set up logging
 logging.basicConfig(
@@ -199,42 +198,20 @@ def main():
     try:
         # Step 1: Run scraper
         if not run_scraper():
-            error_msg = "Pipeline failed at scraping stage"
-            logger.error(f"\n✗ {error_msg}")
-            send_error_notification(error_msg)
+            logger.error("Pipeline failed at scraping stage")
             sys.exit(1)
 
         # Step 2: Upload to database
         success, brands_scraped, stats, failed_brands = upload_to_database()
 
         if not success:
-            error_msg = "Pipeline failed at database upload stage"
-            logger.error(f"\n✗ {error_msg}")
-            send_error_notification(error_msg)
+            logger.error("Pipeline failed at database upload stage")
             sys.exit(1)
 
-        # Success
-        logger.info("\n" + "=" * 80)
-        logger.info("✓ PIPELINE COMPLETE - ALL STEPS SUCCESSFUL")
-        logger.info("=" * 80)
-
-        # Step 3: Send email notification
-        logger.info("\n" + "=" * 80)
-        logger.info("STEP 3: SENDING EMAIL NOTIFICATION")
-        logger.info("=" * 80)
-
-        success_rate = 100.0 if stats.get('failed', 0) == 0 else ((stats.get('new', 0) + stats.get('updated', 0)) / stats.get('total', 1)) * 100
-        send_scraping_notification(
-            brands_scraped=brands_scraped,
-            stats=stats,
-            success_rate=success_rate,
-            failed_brands=failed_brands
-        )
+        logger.info("Pipeline complete")
 
     except Exception as e:
-        error_msg = f"Unexpected error: {str(e)}"
-        logger.error(f"\n✗ {error_msg}")
-        send_error_notification(error_msg)
+        logger.error(f"Unexpected error: {str(e)}")
         sys.exit(1)
 
 if __name__ == "__main__":
