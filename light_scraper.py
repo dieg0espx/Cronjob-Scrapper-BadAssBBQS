@@ -116,7 +116,9 @@ class LightScraper:
             delay = random.uniform(*self.delay_range)
             time.sleep(delay)
 
-            return BeautifulSoup(response.content, 'html.parser')
+            # Use response.text with explicit encoding to avoid warnings
+            response.encoding = response.apparent_encoding or 'utf-8'
+            return BeautifulSoup(response.text, 'html.parser')
         except requests.RequestException as e:
             logger.error(f"Error fetching {url}: {e}")
             return None
