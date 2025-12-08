@@ -88,22 +88,27 @@ class LightScraper:
         if USE_SUPABASE and SUPABASE_URL and SUPABASE_KEY:
             try:
                 self.supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-                logger.info("✓ Connected to Supabase")
             except Exception as e:
                 logger.error(f"Failed to connect to Supabase: {e}")
-                logger.info("Will fall back to JSON file storage")
 
-        # Set headers to avoid being blocked
+        # Set headers to avoid being blocked (mimic real Chrome browser)
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0',
         })
 
     def get_page(self, url):
         """Fetch a webpage and return BeautifulSoup object"""
         try:
-            logger.info(f"Fetching: {url}")
             response = self.session.get(url, timeout=10)
             response.raise_for_status()
 
@@ -120,7 +125,6 @@ class LightScraper:
 
     def get_page_count(self, brand_url):
         """Detect total number of pages for a brand"""
-        logger.info("STEP 1: Detecting pagination...")
         soup = self.get_page(brand_url)
 
         if not soup:
@@ -152,7 +156,6 @@ class LightScraper:
                     except ValueError:
                         pass
 
-        logger.info(f"✓ Found {max_page} pages")
         return max_page
 
     # ===== STEP 2: URL EXTRACTION =====
@@ -165,12 +168,9 @@ class LightScraper:
             total_pages: Total number of pages to scrape
             test_mode: 0 = all products, 1 = 1 product, 2 = 2 products
         """
-        logger.info(f"STEP 2: Extracting product URLs from {total_pages} pages...")
         if test_mode == 1:
-            logger.info("  TEST MODE: Will limit to 1 product only")
             max_products = 1
         elif test_mode == 2:
-            logger.info("  TEST MODE: Will limit to 2 products only")
             max_products = 2
         else:
             max_products = None
@@ -180,7 +180,6 @@ class LightScraper:
         for page_num in range(1, total_pages + 1):
             # If in test mode and we already have enough products, stop
             if max_products and len(all_urls) >= max_products:
-                logger.info(f"  TEST MODE: Reached limit of {max_products} products")
                 break
 
             # Generate page URL
@@ -196,11 +195,9 @@ class LightScraper:
                     parsed.params, new_query, ''
                 ))
 
-            logger.info(f"  Processing page {page_num}/{total_pages}...")
             soup = self.get_page(page_url)
 
             if not soup:
-                logger.warning(f"  Failed to fetch page {page_num}")
                 continue
 
             # Extract product URLs (products have /i/ in path)
@@ -222,13 +219,10 @@ class LightScraper:
                         if max_products and len(all_urls) >= max_products:
                             break
 
-            logger.info(f"  Found {len(all_urls)} total unique URLs so far")
-
             # If in test mode and we have enough, stop
             if max_products and len(all_urls) >= max_products:
                 break
 
-        logger.info(f"✓ Total unique products found: {len(all_urls)}")
         return all_urls
 
     # ===== STEP 3: PRODUCT SCRAPING =====
@@ -334,25 +328,13 @@ class LightScraper:
 
     def scrape_all_products(self, product_urls):
         """Scrape all products and return list"""
-        logger.info(f"STEP 3: Scraping {len(product_urls)} products...")
         products = []
 
         for i, url in enumerate(product_urls, 1):
-            progress = (i / len(product_urls)) * 100
-            logger.info(f"[{i}/{len(product_urls)}] ({progress:.1f}%) Scraping: {url}")
-
             product = self.scrape_product(url)
             if product:
                 products.append(product)
-                logger.info(f"  ✓ Success: {product.get('Title', 'Unknown')}")
-            else:
-                logger.warning(f"  ✗ Failed")
 
-            # Progress indicator every 10 products
-            if i % 10 == 0 or i == len(product_urls):
-                logger.info(f"  Progress: {len(products)} successful, {i - len(products)} failed")
-
-        logger.info(f"✓ Scraping complete: {len(products)}/{len(product_urls)} successful")
         return products
 
     # ===== MAIN WORKFLOW =====
@@ -365,59 +347,21 @@ class LightScraper:
             brand_name: Name of the brand
             test_mode: 0 = all products, 1 = 1 product, 2 = 2 products
         """
-        logger.info("=" * 60)
-        logger.info(f"SCRAPING BRAND: {brand_name or brand_url}")
-        logger.info("=" * 60)
-        logger.info(f"Target: {brand_url}")
-
-        if test_mode == 0:
-            mode_str = "FULL (all products)"
-        elif test_mode == 1:
-            mode_str = "TEST (1 product)"
-        else:
-            mode_str = "TEST (2 products)"
-
-        logger.info(f"Mode: {mode_str}")
-        logger.info("")
-
-        # Step 1: Get page count
         total_pages = self.get_page_count(brand_url)
-        logger.info("")
-
-        # Step 2: Extract URLs
         product_urls = self.extract_product_urls(brand_url, total_pages, test_mode)
-        logger.info("")
-
-        # Step 3: Scrape products
         products = self.scrape_all_products(product_urls)
-        logger.info("")
-
-        logger.info("=" * 60)
-        logger.info(f"BRAND COMPLETE: {brand_name or brand_url}")
-        logger.info("=" * 60)
-        logger.info(f"✓ Total products scraped: {len(products)}")
-        logger.info(f"✓ Success rate: {len(products)}/{len(product_urls)} ({len(products)/len(product_urls)*100:.1f}%)")
-        logger.info("")
-
         return products
 
     def save_to_supabase(self, products):
         """Save products to Supabase database"""
         if not self.supabase:
-            logger.warning("Supabase not configured, skipping database save")
             return False
 
         try:
-            logger.info(f"Saving {len(products)} products to Supabase...")
-
-            # Insert products in batches of 100 to avoid timeouts
             batch_size = 100
             for i in range(0, len(products), batch_size):
                 batch = products[i:i + batch_size]
                 self.supabase.table('products').upsert(batch).execute()
-                logger.info(f"  Saved batch {i//batch_size + 1}/{(len(products)-1)//batch_size + 1}")
-
-            logger.info("✓ Successfully saved all products to Supabase")
             return True
         except Exception as e:
             logger.error(f"Error saving to Supabase: {e}")
@@ -433,30 +377,10 @@ class LightScraper:
                       1 = 1 product from 1 random brand,
                       2 = 2 products from each brand
         """
-        logger.info("=" * 80)
-        logger.info("LIGHT BBQ SCRAPER - MULTI-BRAND MODE")
-        logger.info("=" * 80)
-
-        if test_mode == 0:
-            mode_str = "FULL (all products from all brands)"
-        elif test_mode == 1:
-            mode_str = "QUICK TEST (1 product from 1 random brand)"
-        else:
-            mode_str = "STANDARD TEST (2 products from each brand)"
-
-        logger.info(f"Mode: {mode_str}")
-        logger.info(f"Schedule mode: {'ENABLED' if USE_SCHEDULE else 'DISABLED'}")
-        logger.info(f"Input file: {url_list_file}")
-        logger.info(f"Output file: {output_file}")
-        logger.info(f"Supabase enabled: {USE_SUPABASE and self.supabase is not None}")
-        logger.info("")
-
         # Load brands from JSON
         try:
             with open(url_list_file, 'r', encoding='utf-8') as f:
                 brands = json.load(f)
-            logger.info(f"✓ Loaded {len(brands)} brands from {url_list_file}")
-            logger.info("")
         except FileNotFoundError:
             logger.error(f"Error: {url_list_file} not found!")
             return []
@@ -471,12 +395,8 @@ class LightScraper:
         elif test_mode == 1:
             import random as rand
             brands = [rand.choice(brands)]
-            logger.info(f"✓ Selected random brand: {brands[0].get('brand', 'Unknown')}")
-            logger.info("")
 
         all_products = []
-        successful_brands = 0
-        failed_brands = []
 
         # Process each brand
         for i, brand_data in enumerate(brands, 1):
@@ -484,60 +404,27 @@ class LightScraper:
             brand_url = brand_data.get('url', '')
 
             if not brand_url:
-                logger.warning(f"[{i}/{len(brands)}] Skipping brand '{brand_name}' - no URL provided")
-                failed_brands.append(brand_name)
                 continue
 
-            logger.info("")
-            logger.info("*" * 80)
-            logger.info(f"PROCESSING BRAND {i}/{len(brands)}: {brand_name}")
-            logger.info("*" * 80)
+            logger.info(f"[{i}/{len(brands)}] {brand_name}")
 
             try:
                 products = self.run(brand_url, brand_name, test_mode)
                 if products:
                     all_products.extend(products)
-                    successful_brands += 1
-                    logger.info(f"✓ Successfully scraped {len(products)} products from {brand_name}")
-                else:
-                    logger.warning(f"✗ No products found for {brand_name}")
-                    failed_brands.append(brand_name)
+                    logger.info(f"  -> {len(products)} products")
             except Exception as e:
-                logger.error(f"✗ Error processing {brand_name}: {e}")
-                failed_brands.append(brand_name)
-
-            logger.info("")
-            logger.info(f"Progress: {i}/{len(brands)} brands processed")
-            logger.info(f"Total products so far: {len(all_products)}")
-            logger.info("")
-
-        # Save all products
-        logger.info("=" * 80)
-        logger.info("SAVING RESULTS")
-        logger.info("=" * 80)
+                logger.error(f"  -> Error: {e}")
 
         # Save to Supabase if configured
         if self.supabase:
             self.save_to_supabase(all_products)
 
         # Always save to JSON as backup
-        logger.info(f"Saving {len(all_products)} products to {output_file}...")
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(all_products, f, indent=2, ensure_ascii=False)
 
-        logger.info("")
-        logger.info("=" * 80)
-        logger.info("ALL BRANDS COMPLETE!")
-        logger.info("=" * 80)
-        logger.info(f"✓ Total brands processed: {len(brands)}")
-        logger.info(f"✓ Successful brands: {successful_brands}")
-        logger.info(f"✓ Failed brands: {len(failed_brands)}")
-        if failed_brands:
-            logger.info(f"  Failed: {', '.join(failed_brands)}")
-        logger.info(f"✓ Total products scraped: {len(all_products)}")
-        logger.info(f"✓ Output file: {output_file}")
-        logger.info("")
-
+        logger.info(f"Done: {len(all_products)} products saved to {output_file}")
         return all_products
 
 
@@ -553,18 +440,7 @@ def main():
     # Check if url_list.json exists
     if not os.path.exists(url_list_file):
         logger.error(f"Error: {url_list_file} not found!")
-        logger.error("Please create url_list.json with brand URLs in the same directory")
         sys.exit(1)
-
-    # Run scraper for all brands
-    mode_descriptions = {
-        0: "FULL SCRAPE - All products from all brands",
-        1: "QUICK TEST - 1 product from 1 random brand",
-        2: "STANDARD TEST - 2 products from each brand"
-    }
-    logger.info(f"Starting scraper with TEST_MODE = {TEST_MODE}")
-    logger.info(f"  ({mode_descriptions.get(TEST_MODE, 'Unknown mode')})")
-    logger.info("")
 
     scraper.run_all_brands(
         url_list_file=url_list_file,
