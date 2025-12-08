@@ -140,7 +140,17 @@ def main():
             sys.exit(1)
 
         # Send success notification
-        msg = f"BBQ Scraper: {stats['new']} new, {stats['updated']} updated, {stats['skipped']} skipped"
+        from datetime import datetime
+        now = datetime.now().strftime("%b %d, %H:%M")
+        brands_list = ", ".join(brands) if brands else "None"
+        msg = f"""BBQ Scraper Report
+Date: {now}
+Brands: {brands_list}
+New: {stats['new']}
+Updated: {stats['updated']}
+Skipped: {stats['skipped']}
+Failed: {stats['failed']}
+Total: {stats['total']}"""
         send_whatsapp(msg)
 
     except Exception as e:
