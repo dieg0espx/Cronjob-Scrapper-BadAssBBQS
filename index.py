@@ -7,10 +7,12 @@ import subprocess
 import sys
 import os
 import json
+import requests
 from pathlib import Path
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import logging
+from urllib.parse import quote
 
 # Set up logging
 logging.basicConfig(
@@ -21,6 +23,17 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
+
+WHATSAPP_PHONE = "5219999088639"
+WHATSAPP_API_KEY = "2134363"
+
+def send_whatsapp(message):
+    """Send WhatsApp notification via CallMeBot"""
+    try:
+        url = f"https://api.callmebot.com/whatsapp.php?phone={WHATSAPP_PHONE}&text={quote(message)}&apikey={WHATSAPP_API_KEY}"
+        requests.get(url, timeout=10)
+    except:
+        pass
 
 def run_scraper():
     """Run the light_scraper.py script"""
@@ -117,15 +130,22 @@ def main():
     try:
         if not run_scraper():
             logger.error("Scraper failed")
+            send_whatsapp("BBQ Scraper: Failed at scraping stage")
             sys.exit(1)
 
-        success, _, _, _ = upload_to_database()
+        success, brands, stats, _ = upload_to_database()
         if not success:
             logger.error("DB upload failed")
+            send_whatsapp("BBQ Scraper: Failed at DB upload")
             sys.exit(1)
+
+        # Send success notification
+        msg = f"BBQ Scraper: {stats['new']} new, {stats['updated']} updated, {stats['skipped']} skipped"
+        send_whatsapp(msg)
 
     except Exception as e:
         logger.error(f"Error: {e}")
+        send_whatsapp(f"BBQ Scraper Error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
