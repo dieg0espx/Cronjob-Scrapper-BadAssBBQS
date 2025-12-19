@@ -5,7 +5,6 @@ No database, no cleanup - just scrape and save to JSON
 Iterates through all brands in url_list.json
 """
 
-import requests
 from bs4 import BeautifulSoup
 import json
 import time
@@ -18,6 +17,7 @@ import os
 from datetime import datetime
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from curl_cffi import requests
 
 # Load environment variables
 load_dotenv()
@@ -80,8 +80,8 @@ class LightScraper:
     def __init__(self, delay_range=(1, 3)):
         """Initialize the light scraper with rate limiting"""
         self.delay_range = delay_range
-        self.session = requests.Session()
         self.base_url = 'https://www.bbqguys.com'
+        self.session = requests.Session()
 
         # Initialize Supabase client if configured
         self.supabase = None
@@ -91,28 +91,18 @@ class LightScraper:
             except Exception as e:
                 logger.error(f"Failed to connect to Supabase: {e}")
 
-        # Set headers to avoid being blocked (mimic real Chrome browser)
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Connection': 'keep-alive',
-        })
-
     def get_page(self, url):
-        """Fetch a webpage and return BeautifulSoup object"""
+        """Fetch a webpage and return BeautifulSoup object using curl_cffi"""
         try:
-            response = self.session.get(url, timeout=10)
+            response = self.session.get(url, impersonate='chrome', timeout=30)
             response.raise_for_status()
 
             # Add delay to be respectful
             delay = random.uniform(*self.delay_range)
             time.sleep(delay)
 
-            # Use response.text with explicit encoding to avoid warnings
-            response.encoding = response.apparent_encoding or 'utf-8'
             return BeautifulSoup(response.text, 'html.parser')
-        except requests.RequestException as e:
+        except Exception as e:
             logger.error(f"Error fetching {url}: {e}")
             return None
 
