@@ -346,7 +346,7 @@ class LightScraper:
             batch_size = 100
             for i in range(0, len(products), batch_size):
                 batch = products[i:i + batch_size]
-                self.supabase.table('products').upsert(batch).execute()
+                self.supabase.table('scrapped_products2').insert(batch).execute()
             return True
         except Exception as e:
             logger.error(f"Error saving to Supabase: {e}")
