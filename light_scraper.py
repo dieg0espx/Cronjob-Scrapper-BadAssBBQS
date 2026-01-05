@@ -178,13 +178,16 @@ class LightScraper:
                     parsed.params, new_query, ''
                 ))
 
+            logger.info(f"    Fetching page {page_num}/{total_pages}")
             soup = self.get_page(page_url)
 
             if not soup:
+                logger.warning(f"    Failed to fetch page {page_num}")
                 continue
 
             # Extract product URLs (products have /i/ in path)
             links = soup.select('a[href*="/i/"]')
+            logger.debug(f"    Found {len(links)} product links on page {page_num}")
             for link in links:
                 href = link.get('href')
                 if href:

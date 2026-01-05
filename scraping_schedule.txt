@@ -1,0 +1,47 @@
+BRAND SCRAPING SCHEDULE
+=======================
+
+MONDAY
+------
+- Alfresco Grills
+- American Made Grills
+- American Outdoor Grill
+
+TUESDAY
+-------
+- Artisan Grills
+- Blackstone Grills
+- Blaze Grills
+
+WEDNESDAY
+---------
+- Breeo
+- Bromic Heating
+- Coyote Outdoor Living
+
+THURSDAY
+--------
+- Delta Heat
+- Fire Magic Grills
+- Fontana Forni
+
+FRIDAY
+------
+- Green Mountain Grills
+- Napoleon
+- Twin Eagles Grills
+
+SATURDAY
+--------
+- Primo Ceramic Grills
+- Summerset Grills
+- Mont Alpi
+
+SUNDAY
+------
+- American Fyre Designs
+- The Outdoor Plus - Top Fires
+- Ledge Lounger
+
+=======================
+Total: 21 brands (3 per day)

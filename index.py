@@ -100,7 +100,7 @@ def upload_to_database(json_file='products.json'):
                         break
 
                 if needs_update:
-                    product['updated_at'] = 'now()'
+                    # Don't add updated_at if column doesn't exist in table
                     supabase.table('scrapped_products2').update(product).eq('id', existing_product['id']).execute()
                     updated_products += 1
                 else:
