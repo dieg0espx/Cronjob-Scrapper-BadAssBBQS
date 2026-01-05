@@ -144,11 +144,11 @@ class LightScraper:
     # ===== STEP 2: URL EXTRACTION =====
 
     def extract_product_urls(self, brand_url, total_pages, test_mode=0):
-        """Extract all product URLs from all pages
+        """Extract all product URLs from page 1 (JS-rendered pages beyond page 1 are blocked by Akamai)
 
         Args:
             brand_url: URL of the brand page
-            total_pages: Total number of pages to scrape
+            total_pages: Total number of pages (currently only page 1 is accessible)
             test_mode: 0 = all products, 1 = 1 product, 2 = 2 products
         """
         if test_mode == 1:
@@ -160,55 +160,36 @@ class LightScraper:
 
         all_urls = []
 
-        for page_num in range(1, total_pages + 1):
-            # If in test mode and we already have enough products, stop
-            if max_products and len(all_urls) >= max_products:
-                break
+        # Note: BBQGuys uses JS-rendered pagination which requires browser automation.
+        # Akamai bot protection blocks Playwright/Selenium, so we can only get page 1.
+        # Page 1 typically contains 40 products per brand.
+        logger.info(f"    Fetching products (page 1 only - JS pagination blocked by Akamai)")
+        soup = self.get_page(brand_url)
 
-            # Generate page URL
-            if page_num == 1:
-                page_url = brand_url
-            else:
-                parsed = urlparse(brand_url)
-                query_params = parse_qs(parsed.query) if parsed.query else {}
-                query_params['page'] = [str(page_num)]
-                new_query = urlencode(query_params, doseq=True)
-                page_url = urlunparse((
+        if not soup:
+            logger.warning(f"    Failed to fetch brand page")
+            return all_urls
+
+        # Extract product URLs (products have /i/ in path)
+        links = soup.select('a[href*="/i/"]')
+        for link in links:
+            href = link.get('href')
+            if href and 'gift-card' not in href:
+                full_url = urljoin(self.base_url, href)
+                # Clean URL (remove query params and anchors)
+                parsed = urlparse(full_url)
+                clean_url = urlunparse((
                     parsed.scheme, parsed.netloc, parsed.path,
-                    parsed.params, new_query, ''
+                    '', '', ''
                 ))
+                if clean_url not in all_urls:
+                    all_urls.append(clean_url)
 
-            logger.info(f"    Fetching page {page_num}/{total_pages}")
-            soup = self.get_page(page_url)
+                    # If in test mode and we have enough, stop
+                    if max_products and len(all_urls) >= max_products:
+                        break
 
-            if not soup:
-                logger.warning(f"    Failed to fetch page {page_num}")
-                continue
-
-            # Extract product URLs (products have /i/ in path)
-            links = soup.select('a[href*="/i/"]')
-            logger.debug(f"    Found {len(links)} product links on page {page_num}")
-            for link in links:
-                href = link.get('href')
-                if href:
-                    full_url = urljoin(self.base_url, href)
-                    # Clean URL (remove query params)
-                    parsed = urlparse(full_url)
-                    clean_url = urlunparse((
-                        parsed.scheme, parsed.netloc, parsed.path,
-                        '', '', ''
-                    ))
-                    if clean_url not in all_urls:
-                        all_urls.append(clean_url)
-
-                        # If in test mode and we have enough, stop
-                        if max_products and len(all_urls) >= max_products:
-                            break
-
-            # If in test mode and we have enough, stop
-            if max_products and len(all_urls) >= max_products:
-                break
-
+        logger.info(f"    Found {len(all_urls)} products")
         return all_urls
 
     # ===== STEP 3: PRODUCT SCRAPING =====
