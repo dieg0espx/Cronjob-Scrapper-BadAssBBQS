@@ -45,32 +45,25 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def get_brands_for_today(brands):
+def get_brands_for_today(brands_by_day):
     """
-    Filter brands based on current day of the week.
-    Distributes 21 brands across 7 days (3 brands per day).
+    Get brands for current day of the week from day-keyed dictionary.
 
-    Day distribution:
-    - Monday (0): brands 0-2 (3 brands)
-    - Tuesday (1): brands 3-5 (3 brands)
-    - Wednesday (2): brands 6-8 (3 brands)
-    - Thursday (3): brands 9-11 (3 brands)
-    - Friday (4): brands 12-14 (3 brands)
-    - Saturday (5): brands 15-17 (3 brands)
-    - Sunday (6): brands 18-20 (3 brands)
+    Expected format:
+    {
+        "monday": [...],
+        "tuesday": [...],
+        ...
+    }
     """
-    today = datetime.now().weekday()  # 0=Monday, 6=Sunday
-    brands_per_day = 3
+    day_names = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    today_idx = datetime.now().weekday()  # 0=Monday, 6=Sunday
+    today_name = day_names[today_idx]
 
-    start_idx = today * brands_per_day
-    end_idx = start_idx + brands_per_day
+    selected_brands = brands_by_day.get(today_name, [])
 
-    day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-    selected_brands = brands[start_idx:end_idx]
-
-    logger.info(f"📅 Today is {day_names[today]}")
-    logger.info(f"📦 Assigned brands for today: {start_idx} to {end_idx-1} (indices)")
-    logger.info(f"🏷️  Brands: {', '.join([b.get('brand', 'Unknown') for b in selected_brands])}")
+    logger.info(f"Today is {today_name.capitalize()}")
+    logger.info(f"Brands for today: {', '.join([b.get('brand', 'Unknown') for b in selected_brands])}")
     logger.info("")
 
     return selected_brands
@@ -120,8 +113,11 @@ class LightScraper:
 
         # Method 1: BBQGuys Material-UI pagination
         pagination_nav = soup.select_one('nav[aria-label*="pagination"]')
+        logger.debug(f"  Pagination nav found: {pagination_nav is not None}")
+
         if pagination_nav:
             page_buttons = pagination_nav.select('button[aria-label*="page"]')
+            logger.debug(f"  Found {len(page_buttons)} page buttons")
             for button in page_buttons:
                 aria_label = button.get('aria-label', '').lower()
                 page_matches = re.findall(r'(?:go to )?page (\d+)', aria_label)
@@ -133,6 +129,7 @@ class LightScraper:
 
             # Check button text content for numbers
             number_buttons = pagination_nav.select('button.MuiPaginationItem-page')
+            logger.debug(f"  Found {len(number_buttons)} number buttons")
             for button in number_buttons:
                 text = button.get_text(strip=True)
                 if text.isdigit():
@@ -141,6 +138,7 @@ class LightScraper:
                     except ValueError:
                         pass
 
+        logger.info(f"  Detected {max_page} pages")
         return max_page
 
     # ===== STEP 2: URL EXTRACTION =====
@@ -356,7 +354,7 @@ class LightScraper:
         """Run scraping for all brands in the url_list.json file
 
         Args:
-            url_list_file: Path to JSON file with brand URLs
+            url_list_file: Path to JSON file with brand URLs (day-keyed format)
             output_file: Path to output JSON file
             test_mode: 0 = all products from all brands,
                       1 = 1 product from 1 random brand,
@@ -365,7 +363,7 @@ class LightScraper:
         # Load brands from JSON
         try:
             with open(url_list_file, 'r', encoding='utf-8') as f:
-                brands = json.load(f)
+                brands_data = json.load(f)
         except FileNotFoundError:
             logger.error(f"Error: {url_list_file} not found!")
             return []
@@ -373,11 +371,17 @@ class LightScraper:
             logger.error(f"Error: Failed to parse {url_list_file}: {e}")
             return []
 
-        # If USE_SCHEDULE is enabled and not in test mode, filter by day of week
+        # Get brands for today (or all brands if USE_SCHEDULE is disabled)
         if USE_SCHEDULE and test_mode == 0:
-            brands = get_brands_for_today(brands)
+            brands = get_brands_for_today(brands_data)
+        else:
+            # Flatten all days into a single list
+            brands = []
+            for day_brands in brands_data.values():
+                brands.extend(day_brands)
+
         # If test_mode is 1, select only one random brand
-        elif test_mode == 1:
+        if test_mode == 1:
             import random as rand
             brands = [rand.choice(brands)]
 
